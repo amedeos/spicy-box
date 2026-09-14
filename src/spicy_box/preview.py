@@ -3,14 +3,26 @@
 This is a development aid rather than part of the deliverable: it triangulates
 the solid and draws it with matplotlib, which is enough to spot a window in the
 wrong place or a pocket that never got cut.
+
+Importing this module requires the optional ``preview`` extra. That is
+deliberate: the failure belongs at import time, where the caller can catch it
+and say something useful, rather than halfway through rendering.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
-from build123d import Part
+import matplotlib
+
+# Chosen before pyplot is imported: previews are written to file, and picking an
+# interactive backend on a headless machine is how this fails in CI.
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt  # noqa: E402  (must follow the backend choice)
+import numpy as np  # noqa: E402
+from build123d import Part  # noqa: E402
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection  # noqa: E402
 
 #: Views rendered by default, as (name, elevation, azimuth) in degrees.
 VIEWS = (("iso", 24.0, -58.0), ("front", 4.0, -90.0), ("top", 88.0, -90.0))
@@ -31,27 +43,20 @@ def _triangles(part: Part, tolerance: float = 0.12) -> np.ndarray:
 
 def render(part: Part, path: Path, elev: float, azim: float, size: int = 900) -> Path:
     """Draw one shaded view of ``part`` and write it to ``path``."""
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-
     tris = _triangles(part)
 
     normals = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
     lengths = np.linalg.norm(normals, axis=1, keepdims=True)
     normals = np.divide(normals, lengths, out=np.zeros_like(normals), where=lengths > 0)
 
-    # matplotlib's own depth sorting is unreliable on a shape with this many
-    # concave features, so facets pointing away from the camera are dropped and
-    # the rest are drawn back to front by hand.
+    # Facets pointing away from the camera are dropped. Without this cull the
+    # interior of the pockets shows through the outer wall, because depth
+    # sorting alone cannot resolve a shape with this many concave features.
+    # The ordering itself is left to Poly3DCollection, which re-sorts by depth
+    # on every draw and would discard any order imposed here.
     eye = _eye_vector(elev, azim)
-    facing = normals @ eye
-    keep = facing > 0
+    keep = normals @ eye > 0
     tris, normals = tris[keep], normals[keep]
-    order = np.argsort(tris.mean(axis=1) @ eye)
-    tris, normals = tris[order], normals[order]
 
     # Flat shading: brightness follows the angle between each facet normal and a
     # light sitting over the viewer's shoulder.

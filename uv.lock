@@ -787,6 +787,12 @@ dependencies = [
     { name = "build123d" },
 ]
 
+[package.optional-dependencies]
+preview = [
+    { name = "matplotlib" },
+    { name = "numpy" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "matplotlib" },
@@ -794,7 +800,12 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "build123d", specifier = "==0.11.1" }]
+requires-dist = [
+    { name = "build123d", specifier = "==0.11.1" },
+    { name = "matplotlib", marker = "extra == 'preview'", specifier = ">=3.8" },
+    { name = "numpy", marker = "extra == 'preview'", specifier = ">=1.26" },
+]
+provides-extras = ["preview"]
 
 [package.metadata.requires-dev]
 dev = [

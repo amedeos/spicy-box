@@ -11,6 +11,9 @@ with no support material anywhere:
   a fillet there would curl under;
 * the windows have a pointed head, so their topmost surfaces stay at 45 degrees
   instead of bridging across the opening.
+
+The ``"arch"`` and ``"open"`` window heads are offered for looks, but only
+``"pointed"`` keeps that last promise: see :func:`_window_profile`.
 """
 
 from __future__ import annotations
@@ -37,6 +40,10 @@ from spicy_box.params import DEFAULT, Params
 
 BOTTOM_UP = (Align.CENTER, Align.CENTER, Align.MIN)
 
+#: Tolerance for matching a circular edge by radius. A numerical epsilon rather
+#: than a dimension, so it does not belong in :class:`Params`.
+RADIUS_TOLERANCE = 1e-6
+
 
 def _window_profile(p: Params) -> Sketch:
     """The outline of one window, drawn in the tangential/vertical plane.
@@ -46,38 +53,38 @@ def _window_profile(p: Params) -> Sketch:
     """
     half = p.window_width / 2
     top = p.window_top_z
+    shoulder = p.window_shoulder
 
-    if p.window_top == "open":
-        # A plain slot that runs past the top face and interrupts the rim.
-        height = top - p.window_bottom
-        return Plane.YZ * Pos(0, p.window_bottom + height / 2) * Rectangle(
-            p.window_width, height
-        )
-
-    shoulder = top - half
     flanks = Plane.YZ * Pos(0, (p.window_bottom + shoulder) / 2) * Rectangle(
         p.window_width, shoulder - p.window_bottom
     )
 
+    if p.window_top == "open":
+        # A plain slot that runs past the top face and interrupts the rim, so
+        # the upper edge becomes a row of tabs rather than a ring.
+        return flanks
+
     if p.window_top == "arch":
-        # A half-round crown. Only the single topmost point is horizontal, which
-        # any printer bridges over without trouble.
+        # A half-round crown. Be aware that this head does NOT keep the part
+        # support-free: the underside of a semicircle passes 45 degrees a
+        # quarter of the way up and flattens to horizontal at the crown, so the
+        # top of the opening will droop unless the slicer is told to support it.
         return flanks + Plane.YZ * Pos(0, shoulder) * Circle(half)
 
-    # "pointed": two flanks meeting at 45 degrees, the safest head of the three.
-    peak = Plane.YZ * Polygon(
+    # "pointed": two flanks meeting at 45 degrees, the only head of the three
+    # that respects the no-support rule everywhere.
+    return flanks + Plane.YZ * Polygon(
         (-half, shoulder),
         (half, shoulder),
         (0, top),
         align=None,
     )
-    return flanks + peak
 
 
 def _pocket_cutters(p: Params) -> Part:
     """The six blind bores that hold the tubes."""
     pocket = Pos(0, 0, p.floor) * Cylinder(
-        p.pocket_dia / 2, p.pocket_depth + 1, align=BOTTOM_UP
+        p.pocket_dia / 2, p.pocket_depth + p.cut_overshoot, align=BOTTOM_UP
     )
     return PolarLocations(p.pitch_radius, p.n_slots) * pocket
 
@@ -86,8 +93,7 @@ def _window_cutters(p: Params) -> Part:
     """Prisms that open each pocket towards the outside of the body."""
     # Extruded from the pocket axis radially outwards, far enough to clear the
     # outer surface even when the foot is flared.
-    reach = p.foot_radius - p.pitch_radius + 1
-    cutter = extrude(_window_profile(p), amount=reach)
+    cutter = extrude(_window_profile(p), amount=p.window_reach)
     return PolarLocations(p.pitch_radius, p.n_slots) * cutter
 
 
@@ -126,7 +132,7 @@ def build_carousel(p: Params = DEFAULT) -> Part:
 
     if p.core_bore_dia > 0:
         body -= Pos(0, 0, p.floor) * Cylinder(
-            p.core_bore_dia / 2, p.height, align=BOTTOM_UP
+            p.core_bore_dia / 2, p.height + p.cut_overshoot, align=BOTTOM_UP
         )
 
     body -= _pocket_cutters(p)
@@ -135,7 +141,7 @@ def build_carousel(p: Params = DEFAULT) -> Part:
         mouths = [
             edge
             for edge in body.edges().filter_by(GeomType.CIRCLE).group_by(Axis.Z)[-1]
-            if abs(edge.radius - p.pocket_dia / 2) < 1e-6
+            if abs(edge.radius - p.pocket_dia / 2) < RADIUS_TOLERANCE
         ]
         if len(mouths) != p.n_slots:
             raise RuntimeError(

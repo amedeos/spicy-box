@@ -81,7 +81,19 @@ Any change has to preserve that:
   and why the bottom outer edge is chamfered rather than filleted;
 * pockets stay vertical and blind, and their mouths are chamfered so the opening
   widens upwards;
-* wall thicknesses stay multiples of the 0.4 mm extrusion width.
+* wall thicknesses stay multiples of the 0.4 mm `EXTRUSION_WIDTH`: `wall_min`
+  is six of them in the load-bearing body, and `rim_wall_min` is three on the
+  top face, where the mouth chamfers and the top chamfer all bite into the same
+  material. `pitch_radius` and `outer_radius` are derived from whichever of the
+  two binds first, so widening a chamfer grows the carousel instead of eating
+  the wall.
+
+Only the `pointed` window head satisfies the 45-degree rule. `arch` and `open`
+are offered as looks, not as support-free geometry, and both say so where they
+are defined.
+
+Previews need the optional `preview` extra (`uv sync --extra preview`); nothing
+else in the project depends on a plotting stack.
 
 `uv run pytest -q` checks the functional side of this: that a tube fits every
 pocket, that each pocket opens through its window, and that the rim survives.

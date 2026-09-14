@@ -15,7 +15,7 @@ re-export.
      │  ( ) ( )    │     6 pockets on a circle, 21.0 mm across
      │ ( )  ( ) ( )│     windows open the upper half
      │ ▓▓▓▓▓▓▓▓▓▓▓ │     closed band at the bottom for stability
-     └─────────────┘     72.6 mm across, 91.2 mm tall
+     └─────────────┘     75.4 mm across, 91.2 mm tall
 ```
 
 ## What you get
@@ -43,8 +43,15 @@ anywhere.
 ```bash
 uv sync                          # set up the environment
 uv run scripts/export.py         # write everything to out/
-uv run scripts/export.py --preview
 uv run pytest -q                 # verify the geometry
+uv run scripts/export.py --preview   # needs the optional preview extra
+```
+
+Previews are an optional extra, because the geometry, the exports and the tests
+all work without a plotting stack:
+
+```bash
+uv sync --extra preview          # or: pip install 'spicy-box[preview]'
 ```
 
 uv fetches its own Python 3.13, because the OpenCascade bindings behind
@@ -69,7 +76,7 @@ edge is chamfered rather than rounded.
 | Nozzle / layer height | 0.4 mm / 0.2 mm |
 | Perimeters | 3 — the pocket walls are 2.4 mm, so they come out solid |
 | Infill | 10-15 %, gyroid or grid |
-| Supports | none |
+| Supports | none — with the default `pointed` window head |
 | Material | PLA or PETG; PETG if it will sit near the hob |
 
 The solid occupies about 186 cm³, most of which the slicer will fill with sparse
@@ -82,7 +89,9 @@ error differs from machine to machine. Rather than discovering that after a long
 print:
 
 1. print `out/tolerance_coupon.stl` — a flat plate, a few minutes' work, with
-   five pockets cut at 0.4, 0.7, 1.0, 1.3 and 1.6 mm of clearance, each labelled;
+   five pockets cut at 0.4, 0.7, 1.0, 1.3 and 1.6 mm of clearance, each labelled.
+   The ladder is centred on whatever `clearance` is currently set, so it keeps
+   bracketing your setting on the next round instead of repeating a fixed range;
 2. try a tube in each and keep the one that drops in and lifts out without
    effort and without rattling;
 3. put that number into `clearance` in `src/spicy_box/params.py`, or pass it on
@@ -100,7 +109,7 @@ every field is also a command line option:
 uv run scripts/export.py --n-slots 8            # a wider carousel
 uv run scripts/export.py --clearance 1.3        # looser pockets
 uv run scripts/export.py --holder-height-ratio 0.35   # a low, open holder
-uv run scripts/export.py --window-top arch      # rounded window heads
+uv run scripts/export.py --window-top arch      # rounded heads; see the caveat below
 uv run scripts/export.py --base-flare 8         # a wider foot for heavy tubes
 ```
 
@@ -116,10 +125,18 @@ The parameters worth knowing about:
 | `band_height` | 40.0 | height of the closed lower band |
 | `rim_height` | 8.0 | uninterrupted ring at the top |
 | `window_width` | 12.0 | how much of each tube you can see and push on |
-| `window_top` | `pointed` | window head: `pointed` and `arch` stop below the rim, `open` runs to the top and breaks the rim into tabs |
+| `window_top` | `pointed` | window head: `pointed` and `arch` stop below the rim, `open` runs to the top and breaks the rim into tabs. Only `pointed` prints without support — see below |
+| `retention_margin` | 2.0 | how much narrower than the tube each window stays on either side |
+| `rim_wall_min` | 1.2 | thinnest material allowed on the top face, where the chamfers meet |
 | `min_protrusion` | 20.0 | shortest length of tube that must stay grabbable above the rim |
 | `base_flare` | 0.0 | extra radius at the foot, for a heavier tube set |
 | `core_bore_dia` | 0.0 | optional bore down the middle |
+
+Only the `pointed` head keeps the no-support promise. A semicircular `arch`
+passes 45 degrees a quarter of the way up and flattens at the crown, so the top
+of a rounded window will droop unless you let the slicer support it; `open`
+deliberately cuts the rim into separate tabs. Both are there for looks — pick
+them knowingly.
 
 `Params.validate()` refuses combinations that would produce a part you cannot
 use — windows so wide that the tubes fall out sideways, a holder so deep that

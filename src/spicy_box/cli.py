@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import fields
 from pathlib import Path
-from typing import Sequence, get_args
+from typing import Sequence, get_args, get_type_hints
 
 from build123d import Mesher, Part, Unit, export_step, export_stl
 
@@ -23,15 +23,21 @@ def _add_param_options(parser: argparse.ArgumentParser) -> None:
     added to the model is immediately overridable from the shell.
     """
     group = parser.add_argument_group("parameters", "override any value in Params")
+    # Resolved rather than read as source text: params.py uses postponed
+    # annotations, so field.type is the string "int", and comparing against it
+    # would quietly start parsing every option as a float the day that import
+    # is removed.
+    hints = get_type_hints(Params)
     for field in fields(Params):
         flag = "--" + field.name.replace("_", "-")
         current = getattr(DEFAULT, field.name)
-        if field.type == "WindowTop" or field.name == "window_top":
+        hint = hints[field.name]
+        if hint is WindowTop:
             group.add_argument(
                 flag, choices=get_args(WindowTop), help=f"default: {current}"
             )
         else:
-            kind = int if field.type == "int" else float
+            kind = int if hint is int else float
             group.add_argument(
                 flag, type=kind, metavar=kind.__name__, help=f"default: {current}"
             )
@@ -119,15 +125,29 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _render_previews(part: Part, out_dir: Path, stem: str) -> list[Path]:
+    """Render previews, explaining the missing extra rather than crashing.
+
+    matplotlib is an optional extra, so a plain install of the package has the
+    flag but not the library. Failing here with a bare ModuleNotFoundError
+    would be doubly unhelpful: the geometry has already been written by this
+    point, so the run is a success apart from the pictures.
+    """
+    try:
+        from spicy_box.preview import render_views
+    except ImportError:
+        print(
+            "note: previews need the optional extra; install it with "
+            "`uv sync --extra preview` (or `pip install 'spicy-box[preview]'`). "
+            "The geometry above was exported normally."
+        )
+        return []
+    return render_views(part, out_dir, stem)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     params = params_from_args(args)
-
-    try:
-        params.validate()
-    except ValueError as error:
-        print(f"invalid parameters: {error}")
-        return 2
 
     print(params.summary())
 
@@ -139,23 +159,30 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     written: list[Path] = []
 
-    if args.only in ("carousel", "both"):
-        carousel = build_carousel(params)
-        written += export_part(carousel, args.out, "spicy_box", step=not args.no_step)
-        if args.preview:
-            from spicy_box.preview import render_views
+    # The build is inside the guard as well as the validation: a parameter set
+    # validate() has not learned to reject yet should still reach the user as a
+    # sentence, not as an OpenCascade traceback.
+    try:
+        if args.only in ("carousel", "both"):
+            carousel = build_carousel(params)
+            written += export_part(
+                carousel, args.out, "spicy_box", step=not args.no_step
+            )
+            if args.preview:
+                written += _render_previews(carousel, args.out, "spicy_box")
 
-            written += render_views(carousel, args.out, "spicy_box")
-
-    if args.only in ("coupon", "both"):
-        coupon = build_tolerance_coupon(params)
-        written += export_part(
-            coupon,
-            args.out,
-            "tolerance_coupon",
-            step=not args.no_step,
-            tolerance=COARSE_TOLERANCE,
-        )
+        if args.only in ("coupon", "both"):
+            coupon = build_tolerance_coupon(params)
+            written += export_part(
+                coupon,
+                args.out,
+                "tolerance_coupon",
+                step=not args.no_step,
+                tolerance=COARSE_TOLERANCE,
+            )
+    except (ValueError, RuntimeError) as error:
+        print(f"invalid parameters: {error}")
+        return 2
 
     print()
     for path in written:

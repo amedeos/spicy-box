@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from math import pi, sin
-from typing import Literal
+from typing import Literal, get_args
 
 WindowTop = Literal["pointed", "arch", "open"]
 
@@ -47,8 +47,15 @@ class Params:
     clearance: float = 1.0
 
     # --- Structure --------------------------------------------------------
-    #: Thinnest wall anywhere in the part; six times the extrusion width.
-    wall_min: float = 2.4
+    #: Thinnest wall in the load-bearing body; six extrusions wide.
+    wall_min: float = 6 * EXTRUSION_WIDTH
+    #: Thinnest material allowed on the top face, where the mouth chamfers and
+    #: the top chamfer all bite into the same wall. It is deliberately smaller
+    #: than :attr:`wall_min`, because this edge carries nothing, but it still
+    #: has to be three extrusions wide: anything thinner is a knife edge that
+    #: the slicer cannot fill with real perimeters and that is unpleasant to
+    #: put a hand on.
+    rim_wall_min: float = 3 * EXTRUSION_WIDTH
     #: Solid material under each pocket.
     floor: float = 3.0
     #: Height of the closed lower band that gives the carousel its stability.
@@ -58,8 +65,12 @@ class Params:
     rim_height: float = 8.0
     #: Tangential width of the windows cut into the upper part.
     window_width: float = 12.0
+    #: How much narrower than the tube each window must stay on either side, so
+    #: that the pocket remains a C-shaped channel the tube cannot escape from.
+    retention_margin: float = 2.0
     #: Shape of the window head. "pointed" keeps every overhang at 45 degrees,
-    #: so the part prints without support.
+    #: so the part prints without support. See :attr:`window_top` handling in
+    #: ``model.py`` for what the other two cost.
     window_top: WindowTop = "pointed"
     #: Lead-in chamfer at the pocket mouth, so a tube drops in without aiming.
     mouth_chamfer: float = 1.0
@@ -71,14 +82,18 @@ class Params:
     #: Left at zero because the tubes are light plastic rather than glass.
     base_flare: float = 0.0
     flare_height: float = 12.0
-    #: Shortest length of tube that must stay above the rim. A holder that
-    #: swallows almost the whole tube is technically printable but you cannot
-    #: get hold of what is inside it.
-    min_protrusion: float = 20.0
     #: Diameter of an optional bore down the middle. Zero leaves the core
     #: solid, which costs little filament because the slicer fills it with
     #: sparse infill; raise it if you want a central compartment.
     core_bore_dia: float = 0.0
+    #: Shortest length of tube that must stay above the rim. A holder that
+    #: swallows almost the whole tube is technically printable but you cannot
+    #: get hold of what is inside it.
+    min_protrusion: float = 20.0
+    #: How far a cutting body is pushed past the surface it cuts through.
+    #: Coincident faces are the classic way to make a boolean fail or leave a
+    #: sliver behind, so every cut deliberately overshoots.
+    cut_overshoot: float = 1.0
 
     # --- Printer ----------------------------------------------------------
     #: Usable bed size, used by the tests to confirm the part still fits.
@@ -99,19 +114,59 @@ class Params:
         return self.tube_dia + self.clearance
 
     @property
+    def mouth_dia(self) -> float:
+        """Diameter the pocket opens out to on the top face.
+
+        The lead-in chamfer widens the mouth, and it is this larger circle —
+        not the pocket itself — that decides how much material is left between
+        neighbouring pockets where a hand actually touches the part.
+        """
+        return self.pocket_dia + 2 * self.mouth_chamfer
+
+    @property
     def pitch_radius(self) -> float:
         """Radius of the circle the pocket centres sit on.
 
-        Derived from the requirement that neighbouring pockets keep at least
-        ``wall_min`` of material between them: the chord between two adjacent
-        centres must be at least ``pocket_dia + wall_min``.
+        Derived from the tightest of the two walls it has to respect: the chord
+        between adjacent centres must leave :attr:`rim_wall_min` between the
+        chamfered mouths on the top face, and :attr:`wall_min` between the
+        pockets themselves lower down.
         """
-        return (self.pocket_dia + self.wall_min) / (2 * sin(pi / self.n_slots))
+        needed = max(self.mouth_dia + self.rim_wall_min, self.pocket_dia + self.wall_min)
+        return needed / (2 * sin(pi / self.n_slots))
 
     @property
     def outer_radius(self) -> float:
-        """Outer radius of the body, excluding any base flare."""
-        return self.pitch_radius + self.pocket_dia / 2 + self.wall_min
+        """Outer radius of the body, excluding any base flare.
+
+        Sized the same way as :attr:`pitch_radius`: the top chamfer eats into
+        the outer edge just as the mouth chamfer eats into the inner one, so
+        both are accounted for before the wall is measured.
+        """
+        return self.pitch_radius + max(
+            self.mouth_dia / 2 + self.rim_wall_min + self.top_chamfer,
+            self.pocket_dia / 2 + self.wall_min,
+        )
+
+    @property
+    def pocket_wall(self) -> float:
+        """Material between two neighbouring pockets, below the chamfers."""
+        return 2 * self.pitch_radius * sin(pi / self.n_slots) - self.pocket_dia
+
+    @property
+    def rim_wall(self) -> float:
+        """Material between two neighbouring mouths, on the top face."""
+        return 2 * self.pitch_radius * sin(pi / self.n_slots) - self.mouth_dia
+
+    @property
+    def outer_rim_wall(self) -> float:
+        """Material between a mouth and the outer edge, on the top face."""
+        return (
+            self.outer_radius
+            - self.top_chamfer
+            - self.pitch_radius
+            - self.mouth_dia / 2
+        )
 
     @property
     def foot_radius(self) -> float:
@@ -151,8 +206,23 @@ class Params:
         deliberately interrupts the rim.
         """
         if self.window_top == "open":
-            return self.height + 1.0
+            return self.height + self.cut_overshoot
         return self.height - self.rim_height
+
+    @property
+    def window_head_height(self) -> float:
+        """Vertical room the window head needs above its straight flanks."""
+        return 0.0 if self.window_top == "open" else self.window_width / 2
+
+    @property
+    def window_shoulder(self) -> float:
+        """Height at which the straight flanks of a window stop."""
+        return self.window_top_z - self.window_head_height
+
+    @property
+    def window_reach(self) -> float:
+        """How far a window cutter travels outwards from the pocket axis."""
+        return self.foot_radius - self.pitch_radius + self.cut_overshoot
 
     @property
     def max_footprint(self) -> float:
@@ -171,15 +241,55 @@ class Params:
     def validate(self) -> None:
         """Raise :class:`ValueError` if the parameters cannot produce a sane part.
 
-        These are the constraints that silently ruin the geometry rather than
-        making it fail loudly, so they are worth checking up front.
+        Two kinds of failure are worth catching here: geometry that makes
+        build123d fail deep inside OpenCascade with a message nobody can act
+        on, and geometry that builds perfectly but yields a part that does not
+        do its job. The second kind is the dangerous one — it only shows up
+        after the print.
         """
+        # Checked first: every later message would otherwise be computed from a
+        # window head this class does not know how to build.
+        if self.window_top not in get_args(WindowTop):
+            raise ValueError(
+                f"unknown window_top: {self.window_top!r}; "
+                f"expected one of {', '.join(get_args(WindowTop))}"
+            )
+
+        positives = (
+            "tube_dia",
+            "tube_body_len",
+            "wall_min",
+            "rim_wall_min",
+            "floor",
+            "rim_height",
+            "window_width",
+            "cut_overshoot",
+        )
+        for name in positives:
+            if getattr(self, name) <= 0:
+                raise ValueError(f"{name} must be positive, got {getattr(self, name)}")
+
+        non_negatives = (
+            "clearance",
+            "cap_len",
+            "band_height",
+            "mouth_chamfer",
+            "bottom_chamfer",
+            "top_chamfer",
+            "base_flare",
+            "retention_margin",
+        )
+        for name in non_negatives:
+            if getattr(self, name) < 0:
+                raise ValueError(
+                    f"{name} cannot be negative, got {getattr(self, name)}"
+                )
+
         if self.n_slots < 3:
             raise ValueError(f"n_slots must be at least 3, got {self.n_slots}")
-        if self.tube_dia <= 0:
-            raise ValueError(f"tube_dia must be positive, got {self.tube_dia}")
-        if self.clearance < 0:
-            raise ValueError(f"clearance cannot be negative, got {self.clearance}")
+        if self.base_flare > 0 and self.flare_height <= 0:
+            raise ValueError("a base flare needs a positive flare_height")
+
         if self.pocket_depth <= 0:
             raise ValueError(
                 f"floor ({self.floor}) leaves no depth inside a holder "
@@ -201,25 +311,56 @@ class Params:
                 f"core_bore_dia ({self.core_bore_dia}) breaks into the pockets; "
                 f"keep it below {2 * self.core_radius:.1f} mm"
             )
-        # A window wider than this turns the pocket into an open cradle and the
-        # tube falls out sideways instead of being held in a C-shaped channel.
-        window_limit = self.pocket_dia - 2 * self.wall_min
-        if self.window_width >= window_limit:
+
+        # Retention is a property of the tube, not of the pocket: widening the
+        # clearance must never be allowed to widen the opening past the tube it
+        # is supposed to hold on to.
+        window_limit = self.tube_dia - 2 * self.retention_margin
+        if self.window_width > window_limit:
             raise ValueError(
-                f"window_width ({self.window_width}) must stay below "
-                f"{window_limit:.1f} mm or the pockets no longer retain a tube"
+                f"window_width ({self.window_width}) must stay at or below "
+                f"{window_limit:.1f} mm — {self.retention_margin} mm inside the "
+                f"{self.tube_dia} mm tube on each side — or the pockets no "
+                "longer retain a tube"
             )
-        if self.window_top != "open" and self.window_bottom >= self.window_top_z:
+
+        # The head sits above the straight flanks, so a window needs room for
+        # both. Checking only the opening would let the flanks run backwards.
+        if self.window_bottom >= self.window_shoulder:
             raise ValueError(
-                f"no room left for a window between {self.window_bottom} mm and "
-                f"{self.window_top_z:.1f} mm; lower band_height or rim_height"
+                f"no room for a window: its flanks would run from "
+                f"{self.window_bottom:.1f} mm up to {self.window_shoulder:.1f} mm; "
+                "lower band_height, lower rim_height, or narrow window_width"
             )
-        if self.window_top not in ("pointed", "arch", "open"):
-            raise ValueError(f"unknown window_top: {self.window_top!r}")
-        if self.mouth_chamfer >= self.wall_min:
+
+        if self.bottom_chamfer >= self.floor:
             raise ValueError(
-                f"mouth_chamfer ({self.mouth_chamfer}) would eat through the "
-                f"{self.wall_min} mm wall between pockets"
+                f"bottom_chamfer ({self.bottom_chamfer}) reaches above the "
+                f"{self.floor} mm floor and would open the side of every pocket"
+            )
+        if self.top_chamfer >= self.rim_height:
+            raise ValueError(
+                f"top_chamfer ({self.top_chamfer}) eats the whole "
+                f"{self.rim_height} mm rim"
+            )
+
+        # These three cannot fail while pitch_radius and outer_radius are
+        # derived as they are, but they are the invariants those formulas exist
+        # to hold, so they are asserted rather than assumed.
+        if self.pocket_wall < self.wall_min - 1e-9:
+            raise ValueError(
+                f"only {self.pocket_wall:.2f} mm between neighbouring pockets, "
+                f"below wall_min ({self.wall_min})"
+            )
+        if self.rim_wall < self.rim_wall_min - 1e-9:
+            raise ValueError(
+                f"only {self.rim_wall:.2f} mm between neighbouring mouths on the "
+                f"top face, below rim_wall_min ({self.rim_wall_min})"
+            )
+        if self.outer_rim_wall < self.rim_wall_min - 1e-9:
+            raise ValueError(
+                f"only {self.outer_rim_wall:.2f} mm between a mouth and the outer "
+                f"edge, below rim_wall_min ({self.rim_wall_min})"
             )
 
     def summary(self) -> str:
@@ -233,6 +374,8 @@ class Params:
                 f"({self.clearance:.1f} mm clearance)",
                 f"body         : {self.max_footprint:.1f} mm across, "
                 f"{self.height:.1f} mm tall",
+                f"thinnest wall: {self.pocket_wall:.1f} mm between pockets, "
+                f"{self.rim_wall:.1f} mm between mouths on the top face",
                 f"tube sticks out by {self.tube_protrusion:.1f} mm",
                 f"bed          : {self.max_footprint:.1f} mm of "
                 f"{self.usable_bed:.0f} mm usable",
