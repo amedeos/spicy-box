@@ -7,7 +7,8 @@ build123d and exported to STL, 3MF and STEP.
 ## Reference measurements
 
 These come from the actual tubes and are the reason the defaults look the way
-they do. Re-measure before changing them.
+they do. Re-measure before changing them; the photographs they were read off
+are in `ref/`.
 
 | Property | Value | How it was obtained |
 | --- | --- | --- |

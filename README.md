@@ -28,6 +28,13 @@ re-export.
 | `out/tolerance_coupon.stl` | a five-hole test piece for dialling in the fit |
 | `out/spicy_box_*.png` | shaded previews, with `--preview` |
 
+## Where the numbers come from
+
+The tubes were measured rather than guessed: 20 mm across the body, about 180 mm
+long, flat-bottomed, with a cap flush to the body. The photographs those figures
+were read off are in [`ref/`](ref/), one per measurement, so any default can be
+traced back to the object itself.
+
 ## Getting started
 
 The project is managed with [uv](https://docs.astral.sh/uv/); `pip` is not used
@@ -130,6 +137,7 @@ src/spicy_box/
 └── cli.py          the exporter
 scripts/export.py   run the exporter from the repository
 tests/              geometry checks, including that a tube fits each pocket
+ref/                photographs of the tubes the defaults were measured from
 ```
 
 ## Licence
