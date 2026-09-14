@@ -33,11 +33,12 @@ class Params:
     cap_len: float = 2.5
 
     # --- Layout -----------------------------------------------------------
-    #: Number of pockets. Six gives the five tubes a spare slot.
-    n_slots: int = 6
-    #: Fraction of the tube length that the holder covers. Half the tube stays
-    #: exposed, which keeps the label readable and the tube easy to grab.
-    holder_height_ratio: float = 0.5
+    #: Number of pockets, one per tube. Raise it if the set grows.
+    n_slots: int = 5
+    #: Fraction of the tube length that the holder covers. At 0.4 the tube
+    #: stands 112 mm proud: the label reads easily, there is plenty to grab,
+    #: and the print is a fifth shorter than at 0.5.
+    holder_height_ratio: float = 0.40
 
     # --- Fit --------------------------------------------------------------
     #: Diametral gap between pocket and tube. Generous on purpose: a pocket cut
@@ -58,7 +59,11 @@ class Params:
     rim_wall_min: float = 3 * EXTRUSION_WIDTH
     #: Solid material under each pocket.
     floor: float = 3.0
-    #: Height of the closed lower band that gives the carousel its stability.
+    #: Height of the closed lower band, measured from the bed. It wraps the
+    #: pockets over the stretch where the tubes rest and forms the stiffest
+    #: ring of the part. Note that this and :attr:`rim_height` are absolute, so
+    #: the window is whatever height is left between them: shortening the
+    #: holder takes millimetres from the window alone.
     band_height: float = 40.0
     #: Height of the uninterrupted ring at the top. Without it the windows
     #: would split the upper edge into separate tabs and the part would flex.

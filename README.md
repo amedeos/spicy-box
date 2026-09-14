@@ -10,12 +10,12 @@ different number of slots or a taller holder is a one-line change followed by a
 re-export.
 
 ```
-       ║║  ║║  ║║        tubes stand proud by ~94 mm, labels readable
+       ║║  ║║  ║║        tubes stand proud by 112 mm, labels readable
      ┌─────────────┐
-     │  ( ) ( )    │     6 pockets on a circle, 21.0 mm across
-     │ ( )  ( ) ( )│     windows open the upper half
-     │ ▓▓▓▓▓▓▓▓▓▓▓ │     closed band at the bottom for stability
-     └─────────────┘     75.4 mm across, 91.2 mm tall
+     │  ( )   ( )  │     5 pockets on a circle, 21.0 mm across
+     │ ( )  ( ) ( )│     windows open the upper part
+     │ ▓▓▓▓▓▓▓▓▓▓▓ │     closed band at the bottom, 40 mm tall
+     └─────────────┘     68.2 mm across, 73.0 mm tall
 ```
 
 ## What you get
@@ -106,9 +106,10 @@ Every dimension lives in `src/spicy_box/params.py` as a field of `Params`, and
 every field is also a command line option:
 
 ```bash
-uv run scripts/export.py --n-slots 8            # a wider carousel
+uv run scripts/export.py --n-slots 6            # room for one more tube
 uv run scripts/export.py --clearance 1.3        # looser pockets
-uv run scripts/export.py --holder-height-ratio 0.35   # a low, open holder
+uv run scripts/export.py --holder-height-ratio 0.5    # a taller holder
+uv run scripts/export.py --band-height 30      # a taller window, shorter band
 uv run scripts/export.py --window-top arch      # rounded heads; see the caveat below
 uv run scripts/export.py --base-flare 8         # a wider foot for heavy tubes
 ```
@@ -119,10 +120,10 @@ The parameters worth knowing about:
 | --- | --- | --- |
 | `tube_dia` | 20.0 | measured tube diameter; the pocket is sized from it |
 | `tube_body_len`, `cap_len` | 180.0, 2.5 | tube length, which sets the height |
-| `n_slots` | 6 | pockets on the circle — five tubes plus a spare |
-| `holder_height_ratio` | 0.5 | how much of the tube the holder covers |
+| `n_slots` | 5 | pockets on the circle, one per tube |
+| `holder_height_ratio` | 0.40 | how much of the tube the holder covers |
 | `clearance` | 1.0 | gap between pocket and tube; see calibration above |
-| `band_height` | 40.0 | height of the closed lower band |
+| `band_height` | 40.0 | height of the closed lower band, measured from the bed |
 | `rim_height` | 8.0 | uninterrupted ring at the top |
 | `window_width` | 12.0 | how much of each tube you can see and push on |
 | `window_top` | `pointed` | window head: `pointed` and `arch` stop below the rim, `open` runs to the top and breaks the rim into tabs. Only `pointed` prints without support — see below |
@@ -137,6 +138,17 @@ passes 45 degrees a quarter of the way up and flattens at the crown, so the top
 of a rounded window will droop unless you let the slicer support it; `open`
 deliberately cuts the rim into separate tabs. Both are there for looks — pick
 them knowingly.
+
+`band_height` and `rim_height` are absolute heights, not fractions, so the
+window is simply what is left between them:
+
+```
+window = height − rim_height − band_height = 73 − 8 − 40 = 25 mm
+```
+
+That means shortening the holder takes its millimetres out of the window alone.
+If you lower `holder_height_ratio` and want to keep the proportions, lower
+`band_height` by the same amount.
 
 `Params.validate()` refuses combinations that would produce a part you cannot
 use — windows so wide that the tubes fall out sideways, a holder so deep that

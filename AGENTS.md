@@ -68,6 +68,11 @@ no hard-coded millimetre values: measured numbers are fields of `Params` and
 anything computable from them is a property. If you find yourself typing a
 number into `model.py`, it belongs in `Params` instead.
 
+Note that `band_height` and `rim_height` are absolute, so the window height is
+the remainder: `height - rim_height - band_height`. Changing the holder height
+alone therefore changes the window by the same number of millimetres, which is
+rarely what someone means.
+
 `Params.validate()` is where design constraints are enforced. Add a check there
 when you discover a combination that produces a technically valid but useless
 part — it is much cheaper than finding out on the print bed.
