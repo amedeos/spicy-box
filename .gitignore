@@ -1,0 +1,9 @@
+# Virtual environment managed by uv; uv.lock is committed instead.
+.venv/
+
+# Generated geometry and previews.
+out/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
