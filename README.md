@@ -12,10 +12,10 @@ re-export.
 ```
        ║║  ║║  ║║        tubes stand proud by 112 mm, labels readable
      ┌─────────────┐
-     │  ( )   ( )  │     5 pockets on a circle, 21.0 mm across
+     │  ( )   ( )  │     5 pockets on a circle, 20.7 mm across
      │ ( )  ( ) ( )│     windows open the upper part
      │ ▓▓▓▓▓▓▓▓▓▓▓ │     closed band at the bottom, 40 mm tall
-     └─────────────┘     68.2 mm across, 73.0 mm tall
+     └─────────────┘     67.4 mm across, 73.0 mm tall
 ```
 
 ## What you get
@@ -89,13 +89,18 @@ error differs from machine to machine. Rather than discovering that after a long
 print:
 
 1. print `out/tolerance_coupon.stl` — a flat plate, a few minutes' work, with
-   five pockets cut at 0.4, 0.7, 1.0, 1.3 and 1.6 mm of clearance, each labelled.
-   The ladder is centred on whatever `clearance` is currently set, so it keeps
-   bracketing your setting on the next round instead of repeating a fixed range;
+   five pockets cut at increasing clearances, each labelled. The ladder is
+   centred on whatever `clearance` is currently set — at the 0.7 mm default it
+   runs 0.1, 0.4, 0.7, 1.0, 1.3 — so it keeps bracketing your setting on the
+   next round instead of repeating a fixed range;
 2. try a tube in each and keep the one that drops in and lifts out without
    effort and without rattling;
 3. put that number into `clearance` in `src/spicy_box/params.py`, or pass it on
    the command line, and export the real part.
+
+The 0.7 mm default is itself a measured value, not a guess: it came out of this
+coupon on a Prusa MK4 at 0.2 mm layers, where 1.0 mm was already loose enough to
+let a tube rattle. Your printer may well land somewhere else.
 
 The coupon reproduces the same chamfered mouth as the carousel, so it feels like
 the finished pockets rather than like a plain drilled hole.
@@ -122,7 +127,7 @@ The parameters worth knowing about:
 | `tube_body_len`, `cap_len` | 180.0, 2.5 | tube length, which sets the height |
 | `n_slots` | 5 | pockets on the circle, one per tube |
 | `holder_height_ratio` | 0.40 | how much of the tube the holder covers |
-| `clearance` | 1.0 | gap between pocket and tube; see calibration above |
+| `clearance` | 0.7 | gap between pocket and tube, measured with the coupon |
 | `band_height` | 40.0 | height of the closed lower band, measured from the bed |
 | `rim_height` | 8.0 | uninterrupted ring at the top |
 | `window_width` | 12.0 | how much of each tube you can see and push on |

@@ -41,11 +41,13 @@ class Params:
     holder_height_ratio: float = 0.40
 
     # --- Fit --------------------------------------------------------------
-    #: Diametral gap between pocket and tube. Generous on purpose: a pocket cut
-    #: to the exact tube diameter behaves like a piston and defeats the whole
-    #: point of a grab-and-go holder. Note that FDM prints holes roughly
-    #: 0.2-0.3 mm undersize, so the effective gap is smaller than this figure.
-    clearance: float = 1.0
+    #: Diametral gap between pocket and tube, measured with the calibration
+    #: coupon on a Prusa MK4 at 0.2 mm layers rather than estimated: 0.7 mm
+    #: drawn came out best, with 1.0 already loose enough to rattle. Remember
+    #: that FDM prints holes roughly 0.2-0.3 mm undersize, so the gap you feel
+    #: is smaller than the figure here. Re-run the coupon after changing
+    #: printer, filament or slicer profile.
+    clearance: float = 0.7
 
     # --- Structure --------------------------------------------------------
     #: Thinnest wall in the load-bearing body; six extrusions wide.
