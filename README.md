@@ -5,6 +5,10 @@ one of them can be picked out with a single hand while you are cooking. The
 tubes it was designed around are 20 mm across and about 180 mm long, and they
 came flat-packed in a wooden box — fine for storage, awkward at the hob.
 
+<img src="ref/printed-carousel.jpg" alt="The printed carousel holding five spice tubes, on the printer bed" width="380">
+
+Printed in PLA on a Prusa MK4 at 0.2 mm, upright and without support.
+
 Everything is generated from a parameter set, so a different tube diameter, a
 different number of slots or a taller holder is a one-line change followed by a
 re-export.
@@ -104,6 +108,11 @@ let a tube rattle. Your printer may well land somewhere else.
 
 The coupon reproduces the same chamfered mouth as the carousel, so it feels like
 the finished pockets rather than like a plain drilled hole.
+
+<img src="ref/printed-carousel-and-coupon.jpg" alt="The carousel next to the printed coupon, whose holes are labelled 0.4 to 1.6" width="330">
+
+The coupon is the flat bar in front, its five holes labelled with the clearance
+each one was cut at.
 
 ## Changing the design
 
