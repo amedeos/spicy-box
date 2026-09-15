@@ -12,7 +12,11 @@ import math
 import pytest
 from build123d import Align, Cylinder, GeomType, Part, Pos, Rot
 
-from spicy_box.calibration import build_tolerance_coupon, clearance_ladder
+from spicy_box.calibration import (
+    LADDER_COUNT,
+    build_tolerance_coupon,
+    clearance_ladder,
+)
 from spicy_box.cli import main
 from spicy_box.model import build_carousel
 from spicy_box.params import DEFAULT, Params
@@ -128,7 +132,7 @@ class TestWindows:
 class TestParams:
     def test_defaults_are_consistent(self) -> None:
         DEFAULT.validate()
-        assert DEFAULT.pocket_dia == pytest.approx(21.0)
+        assert DEFAULT.pocket_dia == pytest.approx(DEFAULT.tube_dia + DEFAULT.clearance)
         assert DEFAULT.pocket_depth < DEFAULT.tube_total_len
 
     def test_pitch_is_set_by_whichever_wall_is_tightest(self) -> None:
@@ -400,13 +404,23 @@ class TestAdvertisedVariants:
 
 class TestClearanceLadder:
     def test_it_is_centred_on_the_clearance_in_use(self) -> None:
-        assert clearance_ladder(DEFAULT) == (0.4, 0.7, 1.0, 1.3, 1.6)
+        assert clearance_ladder(DEFAULT.replace(clearance=1.0)) == (
+            0.4,
+            0.7,
+            1.0,
+            1.3,
+            1.6,
+        )
         assert clearance_ladder(DEFAULT.replace(clearance=1.6)) == (
             1.0,
             1.3,
             1.6,
             1.9,
             2.2,
+        )
+        # The measured default sits in the middle of its own ladder.
+        assert clearance_ladder(DEFAULT)[LADDER_COUNT // 2] == pytest.approx(
+            DEFAULT.clearance
         )
 
     def test_rungs_at_or_below_zero_are_dropped(self) -> None:
